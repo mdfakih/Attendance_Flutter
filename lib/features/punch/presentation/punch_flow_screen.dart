@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
@@ -9,7 +10,9 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/network/api_failure.dart';
+import '../../../core/notifications/punch_reminder.dart';
 import '../../../core/providers.dart';
+import '../../regularization/presentation/regularization_screen.dart';
 import '../data/punch_service.dart';
 import 'liveness_controller.dart';
 
@@ -29,12 +32,14 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
   _Stage _stage = _Stage.permissions;
   String _status = 'Checking permissions…';
   String? _error;
+  String? _errorCode;
   Map<String, dynamic>? _errorDetails;
   Position? _fix;
   PunchIntent? _intent;
   CameraController? _camera;
   LivenessController? _liveness;
   Map<String, dynamic>? _result;
+  bool _regRequested = false;
 
   @override
   void initState() {
@@ -70,7 +75,7 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
       await _startCamera(intent.challenge);
     } catch (e) {
       final failure = ApiFailure.from(e);
-      _fail(failure.message, details: failure.details is Map ? (failure.details as Map).cast<String, dynamic>() : null);
+      _fail(failure.message, code: failure.code, details: failure.details is Map ? (failure.details as Map).cast<String, dynamic>() : null);
     }
   }
 
@@ -135,17 +140,20 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
         _result = result;
         _stage = _Stage.done;
       });
+      // Punch-in schedules "forgot to punch out?"; punch-out (reminderAt null) cancels it.
+      unawaited(PunchReminder.sync(result['reminderAt'] as String?));
     } catch (e) {
       final failure = ApiFailure.from(e);
-      _fail(failure.message, details: failure.details is Map ? (failure.details as Map).cast<String, dynamic>() : null);
+      _fail(failure.message, code: failure.code, details: failure.details is Map ? (failure.details as Map).cast<String, dynamic>() : null);
     }
   }
 
-  void _fail(String message, {Map<String, dynamic>? details, bool openSettings = false}) {
+  void _fail(String message, {String? code, Map<String, dynamic>? details, bool openSettings = false}) {
     if (!mounted) return;
     setState(() {
       _stage = _Stage.failed;
       _error = message;
+      _errorCode = code;
       _errorDetails = {...?details, if (openSettings) 'openSettings': true};
     });
   }
@@ -207,8 +215,37 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
             Text(direction, style: Theme.of(context).textTheme.headlineSmall),
             if (punch != null) Text(TimeOfDay.fromDateTime(DateTime.parse(punch['at'] as String).toLocal()).format(context), style: Theme.of(context).textTheme.headlineMedium),
             if (day != null) Text('Today: ${(day['workedMinutes'] as int) ~/ 60}h ${(day['workedMinutes'] as int) % 60}m worked'),
+            if (day != null && day['regState'] == 'AVAILABLE') _outsideNotice(day),
             const SizedBox(height: 24),
             FilledButton(onPressed: () => context.pop(true), child: const Text('Done')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Time outside working hours is recorded but not counted unless the employee asks and the employer approves.
+  Widget _outsideNotice(Map<String, dynamic> day) {
+    final outside = day['outsideMinutes'] as int? ?? 0;
+    return Card(
+      margin: const EdgeInsets.only(top: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text('${fmtDuration(outside)} of today is outside your working hours and is not counted.', textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            if (_regRequested)
+              const Text('Request sent to your employer.')
+            else
+              TextButton.icon(
+                onPressed: () async {
+                  final sent = await showRegularizationRequestSheet(context, date: day['date'] as String, outsideMinutes: outside);
+                  if (sent && mounted) setState(() => _regRequested = true);
+                },
+                icon: const Icon(Icons.more_time),
+                label: const Text('Ask to count this time'),
+              ),
           ],
         ),
       ),
@@ -229,11 +266,14 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
             if (d['nearestSite'] != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('You are ${d['distanceM']} m from ${d['nearestSite']} (allowed ${d['radiusM']} m).', textAlign: TextAlign.center)),
             const SizedBox(height: 24),
             if (d['openSettings'] == true) OutlinedButton(onPressed: openAppSettings, child: const Text('Open settings')),
-            FilledButton(onPressed: () => setState(() {
-                  _stage = _Stage.permissions;
-                  _error = null;
-                  _run();
-                }), child: const Text('Try again')),
+            // Retrying cannot lift the daily punch limit; only the employer can.
+            if (_errorCode != 'PUNCH_LIMIT')
+              FilledButton(onPressed: () => setState(() {
+                    _stage = _Stage.permissions;
+                    _error = null;
+                    _errorCode = null;
+                    _run();
+                  }), child: const Text('Try again')),
             TextButton(onPressed: () => context.pop(), child: const Text('Cancel')),
           ],
         ),

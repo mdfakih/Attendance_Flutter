@@ -21,6 +21,25 @@ class PunchContext {
   List<Map<String, dynamic>> get sites => (json['sites'] as List).cast<Map<String, dynamic>>();
   List<Map<String, dynamic>> get punches => (json['punches'] as List).cast<Map<String, dynamic>>();
   Map<String, dynamic>? get shift => json['shift'] as Map<String, dynamic>?;
+
+  /// 'FIRST_IN_LAST_OUT' (a later OUT replaces the earlier punch-out) or 'SUM_OF_PAIRS' (every IN→OUT pair counts).
+  String? get hoursMode => json['hoursMode'] as String?;
+  int? get punchesLeft => json['punchesLeft'] as int?;
+  bool get limitReached => blockedReason == 'PUNCH_LIMIT' || punchesLeft == 0;
+
+  /// When the phone should remind the employee to punch out; null = cancel any reminder.
+  String? get reminderAt => json['reminderAt'] as String?;
+
+  /// Minutes punched outside working hours today (not counted unless the employer approves).
+  int get outsideMinutes => today['outsideMinutes'] as int? ?? 0;
+  String get regState => today['regState'] as String? ?? 'NOT_APPLICABLE';
+
+  /// In FIRST_IN_LAST_OUT mode, the earlier punch-out that the next OUT would replace (local time).
+  DateTime? get replacedPunchOut {
+    if (hoursMode != 'FIRST_IN_LAST_OUT' || nextDirection != 'OUT') return null;
+    final outs = punches.where((p) => p['direction'] == 'OUT');
+    return outs.isEmpty ? null : DateTime.parse(outs.last['at'] as String).toLocal();
+  }
 }
 
 class PunchIntent {
