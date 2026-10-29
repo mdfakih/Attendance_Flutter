@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../app/theme/app_palette.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/providers.dart';
+import '../../../shared/widgets/month_switcher.dart';
+import '../../../shared/widgets/skeleton.dart';
+import '../../../shared/widgets/states.dart';
+import '../../../shared/widgets/status_pill.dart';
 
 final earningsProvider = FutureProvider.autoDispose.family<Map<String, dynamic>?, String>((ref, month) async {
   final current = DateFormat('yyyy-MM').format(DateTime.now()) == month;
@@ -11,6 +16,9 @@ final earningsProvider = FutureProvider.autoDispose.family<Map<String, dynamic>?
 });
 
 final _inr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+
+String _money(Object? value) => _inr.format(double.parse(value as String));
+String _hours(int minutes) => '${minutes ~/ 60}h ${minutes % 60}m';
 
 class EarningsScreen extends ConsumerStatefulWidget {
   const EarningsScreen({super.key});
@@ -29,54 +37,112 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
     final isCurrent = key == DateFormat('yyyy-MM').format(DateTime.now());
     return Scaffold(
       appBar: AppBar(title: const Text('Earnings')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(onPressed: () => setState(() => _month = DateTime(_month.year, _month.month - 1)), icon: const Icon(Icons.chevron_left)),
-              Text(DateFormat('MMMM yyyy').format(_month), style: Theme.of(context).textTheme.titleMedium),
-              IconButton(onPressed: isCurrent ? null : () => setState(() => _month = DateTime(_month.year, _month.month + 1)), icon: const Icon(Icons.chevron_right)),
-            ],
-          ),
-          data.when(
-            loading: () => const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
-            error: (e, _) => Text(ApiFailure.from(e).message),
-            data: (d) => d == null
-                ? const Padding(padding: EdgeInsets.all(32), child: Text('No earnings summary for this month yet. Past months appear once your employer finalises them.', textAlign: TextAlign.center))
-                : Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(isCurrent ? 'Earned so far' : 'Earned', style: Theme.of(context).textTheme.bodyMedium),
-                          Text(_inr.format(double.parse(d['netEarned'] as String)), style: Theme.of(context).textTheme.displaySmall),
-                          if (d['projectedNet'] != null) Text('Projected for the full month: ${_inr.format(double.parse(d['projectedNet'] as String))}'),
-                          const Divider(height: 24),
-                          _row('Payable days', '${d['payableDays']}'),
-                          _row('Loss-of-pay days', '${d['lopDays']}'),
-                          _row('Hours worked', '${(d['workedMinutes'] as int) ~/ 60}h ${(d['workedMinutes'] as int) % 60}m'),
-                          if ((d['otMinutes'] as int) > 0) _row('Overtime', '${(d['otMinutes'] as int) ~/ 60}h ${(d['otMinutes'] as int) % 60}m'),
-                          _row('Base pay', _inr.format(double.parse(d['baseEarned'] as String))),
-                          if (double.parse(d['otEarned'] as String) > 0) _row('Overtime pay', _inr.format(double.parse(d['otEarned'] as String))),
-                          _row('Additions', _inr.format(double.parse(d['additions'] as String))),
-                          _row('Deductions', '− ${_inr.format(double.parse(d['deductions'] as String))}'),
-                          const SizedBox(height: 12),
-                          Text('Figures are before statutory deductions (PF, ESI, tax). ${d['status'] == 'LOCKED' ? 'Finalised by your employer.' : 'Updates as you punch.'}', style: Theme.of(context).textTheme.bodySmall),
-                        ],
+      body: RefreshIndicator(
+        onRefresh: () async => ref.invalidate(earningsProvider(key)),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+          children: [
+            MonthSwitcher(month: _month, onChanged: (m) => setState(() => _month = m)),
+            const SizedBox(height: 16),
+            data.when(
+              loading: () => const Shimmer(child: Column(children: [SkeletonBox(height: 150, radius: 24), SizedBox(height: 16), SkeletonBox(height: 260, radius: 18)])),
+              error: (e, _) => Card(child: ErrorState(message: ApiFailure.from(e).message, onRetry: () => ref.invalidate(earningsProvider(key)))),
+              data: (d) => d == null
+                  ? const Card(
+                      child: EmptyState(
+                        icon: Icons.account_balance_wallet_outlined,
+                        title: 'No summary yet',
+                        message: 'No earnings summary for this month yet. Past months appear once your employer finalises them.',
                       ),
-                    ),
-                  ),
-          ),
-        ],
+                    )
+                  : _Summary(data: d, isCurrent: isCurrent),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _row(String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label), Text(value, style: const TextStyle(fontWeight: FontWeight.w600))]),
+class _Summary extends StatelessWidget {
+  const _Summary({required this.data, required this.isCurrent});
+
+  final Map<String, dynamic> data;
+  final bool isCurrent;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = data;
+    final palette = AppPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    final locked = d['status'] == 'LOCKED';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(gradient: palette.heroGradient, borderRadius: BorderRadius.circular(24)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Text(isCurrent ? 'Earned so far' : 'Earned', style: text.titleSmall?.copyWith(color: palette.onHero.withValues(alpha: 0.9))),
+                const Spacer(),
+                StatusPill(label: locked ? 'Finalised' : 'Live', color: palette.onHero, onDark: true, icon: locked ? Icons.lock_rounded : Icons.bolt_rounded),
+              ]),
+              const SizedBox(height: 8),
+              FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(_money(d['netEarned']), style: text.displaySmall?.copyWith(color: palette.onHero))),
+              if (d['projectedNet'] != null) ...[
+                const SizedBox(height: 4),
+                Text('Projected for the full month: ${_money(d['projectedNet'])}', style: text.bodyMedium?.copyWith(color: palette.onHero.withValues(alpha: 0.88))),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+            child: Column(
+              children: [
+                _Row('Payable days', '${d['payableDays']}'),
+                _Row('Loss-of-pay days', '${d['lopDays']}'),
+                _Row('Hours worked', _hours(d['workedMinutes'] as int)),
+                if ((d['otMinutes'] as int) > 0) _Row('Overtime', _hours(d['otMinutes'] as int)),
+                const Divider(height: 20),
+                _Row('Base pay', _money(d['baseEarned'])),
+                if (double.parse(d['otEarned'] as String) > 0) _Row('Overtime pay', _money(d['otEarned'])),
+                _Row('Additions', _money(d['additions'])),
+                _Row('Deductions', '− ${_money(d['deductions'])}'),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            'Figures are before statutory deductions (PF, ESI, tax). ${locked ? 'Finalised by your employer.' : 'Updates as you punch.'}',
+            style: text.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Row extends StatelessWidget {
+  const _Row(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(children: [
+          Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+          Text(value, style: Theme.of(context).textTheme.titleSmall),
+        ]),
       );
 }

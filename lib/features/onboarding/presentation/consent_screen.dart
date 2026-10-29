@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_failure.dart';
 import '../../../core/providers.dart';
+import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/busy_button.dart';
+import '../../../shared/widgets/gate_layout.dart';
 
 /// Privacy notice (DPDP): must be accepted before camera or location are used.
 class ConsentScreen extends ConsumerStatefulWidget {
@@ -41,26 +44,52 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
     final me = ref.watch(sessionControllerProvider).me;
     final notice = me?.notice;
     final purposes = (notice?['purposes'] as List?)?.cast<Map>() ?? const [];
-    return Scaffold(
-      appBar: AppBar(title: Text(notice?['title'] as String? ?? 'Privacy notice')),
-      body: notice == null
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(24),
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    if (notice == null) return const Scaffold(body: AppLoader(label: 'Loading the privacy notice…'));
+    return GateLayout(
+      icon: Icons.privacy_tip_outlined,
+      title: notice['title'] as String? ?? 'Privacy notice',
+      subtitle: '${me?.companyName} uses this app to record your attendance.',
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Text((notice['bodyMd'] as String? ?? '').replaceAll(RegExp(r'\*\*'), ''), style: text.bodyMedium),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${me?.companyName} uses this app to record your attendance.', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 16),
-                Text((notice['bodyMd'] as String? ?? '').replaceAll(RegExp(r'\*\*'), '')),
-                const SizedBox(height: 16),
-                Text('What is collected', style: Theme.of(context).textTheme.titleSmall),
-                for (final p in purposes) ListTile(dense: true, leading: const Icon(Icons.check_circle_outline), title: Text(p['label'] as String)),
-                if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                const SizedBox(height: 16),
-                FilledButton(onPressed: _busy ? null : _accept, child: const Text('I agree')),
-                const SizedBox(height: 8),
-                const Text('You can withdraw consent later from your profile; your employer will then mark attendance for you manually.', style: TextStyle(fontSize: 12), textAlign: TextAlign.center),
+                Text('What is collected', style: text.titleSmall),
+                const SizedBox(height: 4),
+                for (final p in purposes)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(children: [
+                      Icon(Icons.check_circle_rounded, color: scheme.primary, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(p['label'] as String)),
+                    ]),
+                  ),
               ],
             ),
+          ),
+        ),
+        if (_error != null) ...[const SizedBox(height: 16), GateNotice(message: _error!)],
+        const SizedBox(height: 20),
+        BusyButton(label: 'I agree', icon: Icons.check_rounded, busy: _busy, onPressed: _accept),
+        const SizedBox(height: 12),
+        Text(
+          'You can withdraw consent later from your profile; your employer will then mark attendance for you manually.',
+          style: text.bodySmall,
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }

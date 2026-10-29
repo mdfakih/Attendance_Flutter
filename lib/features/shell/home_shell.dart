@@ -13,21 +13,25 @@ class HomeShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final me = ref.watch(sessionControllerProvider).me;
-    final tabs = <({String route, IconData icon, String label})>[
-      (route: Routes.home, icon: Icons.home_outlined, label: 'Home'),
-      (route: Routes.attendance, icon: Icons.calendar_month_outlined, label: 'Attendance'),
-      if (me?.has('LEAVE') ?? false) (route: Routes.leave, icon: Icons.event_busy_outlined, label: 'Leave'),
-      if (me?.has('EMPLOYEE_EARNINGS_VIEW') ?? false) (route: Routes.earnings, icon: Icons.payments_outlined, label: 'Earnings'),
-      (route: Routes.profile, icon: Icons.person_outline, label: 'Profile'),
+    final tabs = <({String route, IconData icon, IconData selectedIcon, String label})>[
+      (route: Routes.home, icon: Icons.home_outlined, selectedIcon: Icons.home_rounded, label: 'Home'),
+      (route: Routes.attendance, icon: Icons.calendar_month_outlined, selectedIcon: Icons.calendar_month_rounded, label: 'Attendance'),
+      if (me?.has('LEAVE') ?? false) (route: Routes.leave, icon: Icons.beach_access_outlined, selectedIcon: Icons.beach_access_rounded, label: 'Leave'),
+      if (me?.has('EMPLOYEE_EARNINGS_VIEW') ?? false)
+        (route: Routes.earnings, icon: Icons.account_balance_wallet_outlined, selectedIcon: Icons.account_balance_wallet_rounded, label: 'Earnings'),
+      (route: Routes.profile, icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded, label: 'Profile'),
     ];
     final location = GoRouterState.of(context).matchedLocation;
     final index = tabs.indexWhere((t) => location.startsWith(t.route)).clamp(0, tabs.length - 1);
     return Scaffold(
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) => context.go(tabs[i].route),
-        destinations: tabs.map((t) => NavigationDestination(icon: Icon(t.icon), label: t.label)).toList(),
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant))),
+        child: NavigationBar(
+          selectedIndex: index,
+          onDestinationSelected: (i) => context.go(tabs[i].route),
+          destinations: tabs.map((t) => NavigationDestination(icon: Icon(t.icon), selectedIcon: Icon(t.selectedIcon), label: t.label)).toList(),
+        ),
       ),
     );
   }

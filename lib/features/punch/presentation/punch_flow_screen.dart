@@ -12,9 +12,12 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/notifications/punch_reminder.dart';
 import '../../../core/providers.dart';
+import '../../../app/theme/app_palette.dart';
+import '../../../shared/widgets/status_pill.dart';
 import '../../regularization/presentation/regularization_screen.dart';
 import '../data/punch_service.dart';
 import 'liveness_controller.dart';
+import 'punch_flow_widgets.dart';
 
 final punchServiceProvider = Provider<PunchService>((ref) => PunchService(api: ref.watch(apiProvider), deviceKey: ref.watch(deviceKeyProvider)));
 
@@ -161,13 +164,14 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final extraTime = ref.watch(sessionControllerProvider.select((s) => s.me?.extraTimeEnabled ?? true));
     return Scaffold(
       appBar: AppBar(title: const Text('Punch'), leading: CloseButton(onPressed: () => context.pop())),
       body: switch (_stage) {
         _Stage.liveness => _livenessView(),
-        _Stage.done => _doneView(scheme),
+        _Stage.done => _doneView(scheme, extraTime),
         _Stage.failed => _failedView(scheme),
-        _ => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [const CircularProgressIndicator(), const SizedBox(height: 16), Text(_status)])),
+        _ => PunchProgress(step: _stage.index, status: _status),
       },
     );
   }
@@ -176,23 +180,48 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
     final camera = _camera!;
     final liveness = _liveness!;
     final step = liveness.currentStep;
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
-        Expanded(child: ClipRRect(child: AspectRatio(aspectRatio: 1 / camera.value.aspectRatio, child: CameraPreview(camera)))),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: Stack(fit: StackFit.expand, children: [
+                FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(width: 300, height: 300 * camera.value.aspectRatio, child: CameraPreview(camera)),
+                ),
+                IgnorePointer(child: CustomPaint(painter: FaceGuidePainter(scheme.primary))),
+              ]),
+            ),
+          ),
+        ),
         Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
           child: Column(
             children: [
               Text(liveness.hint, style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(liveness.challenge.length, (i) => Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Chip(label: Text(LivenessController.label(liveness.challenge[i])), avatar: Icon(i < liveness.stepIndex ? Icons.check_circle : Icons.radio_button_unchecked, size: 18)),
-                    )),
+              const SizedBox(height: 14),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(liveness.challenge.length, (i) {
+                  final done = i < liveness.stepIndex;
+                  final color = done ? AppPalette.of(context).success : scheme.onSurfaceVariant;
+                  return StatusPill(label: LivenessController.label(liveness.challenge[i]), color: color, icon: done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded);
+                }),
               ),
-              if (step != null && _intent != null) Text('Site: ${_intent!.siteName}', style: Theme.of(context).textTheme.bodySmall),
+              if (step != null && _intent != null) ...[
+                const SizedBox(height: 12),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.place_rounded, size: 16, color: scheme.primary),
+                  const SizedBox(width: 4),
+                  Text('Site: ${_intent!.siteName}', style: Theme.of(context).textTheme.bodySmall),
+                ]),
+              ],
             ],
           ),
         ),
@@ -200,25 +229,49 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
     );
   }
 
-  Widget _doneView(ColorScheme scheme) {
+  Widget _doneView(ColorScheme scheme, bool extraTime) {
     final punch = _result?['punch'] as Map<String, dynamic>?;
     final day = _result?['day'] as Map<String, dynamic>?;
-    final direction = punch?['direction'] == 'IN' ? 'Punched in' : 'Punched out';
+    final isIn = punch?['direction'] == 'IN';
+    final direction = isIn ? 'Punched in' : 'Punched out';
+    final success = AppPalette.of(context).success;
+    final text = Theme.of(context).textTheme;
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.check_circle, size: 80, color: scheme.primary),
-            const SizedBox(height: 16),
-            Text(direction, style: Theme.of(context).textTheme.headlineSmall),
-            if (punch != null) Text(TimeOfDay.fromDateTime(DateTime.parse(punch['at'] as String).toLocal()).format(context), style: Theme.of(context).textTheme.headlineMedium),
-            if (day != null) Text('Today: ${(day['workedMinutes'] as int) ~/ 60}h ${(day['workedMinutes'] as int) % 60}m worked'),
-            if (day != null && day['regState'] == 'AVAILABLE') _outsideNotice(day),
-            const SizedBox(height: 24),
-            FilledButton(onPressed: () => context.pop(true), child: const Text('Done')),
-          ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.6, end: 1),
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.easeOutBack,
+                  builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
+                  child: Container(
+                    width: 104,
+                    height: 104,
+                    decoration: BoxDecoration(color: success.withValues(alpha: 0.14), shape: BoxShape.circle),
+                    child: Icon(Icons.check_circle_rounded, size: 72, color: success),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(direction, style: text.headlineSmall, textAlign: TextAlign.center),
+              if (punch != null)
+                Text(TimeOfDay.fromDateTime(DateTime.parse(punch['at'] as String).toLocal()).format(context), style: text.displaySmall?.copyWith(color: scheme.primary), textAlign: TextAlign.center),
+              if (day != null) ...[
+                const SizedBox(height: 4),
+                Text('Today: ${(day['workedMinutes'] as int) ~/ 60}h ${(day['workedMinutes'] as int) % 60}m worked', style: text.bodyLarge, textAlign: TextAlign.center),
+              ],
+              if (extraTime && day != null && day['regState'] == 'AVAILABLE') _outsideNotice(day),
+              const SizedBox(height: 28),
+              FilledButton(onPressed: () => context.pop(true), child: const Text('Done')),
+            ],
+          ),
         ),
       ),
     );
@@ -228,11 +281,13 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
   Widget _outsideNotice(Map<String, dynamic> day) {
     final outside = day['outsideMinutes'] as int? ?? 0;
     return Card(
-      margin: const EdgeInsets.only(top: 16),
+      margin: const EdgeInsets.only(top: 20),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            Icon(Icons.more_time_rounded, color: AppPalette.of(context).warning),
+            const SizedBox(height: 8),
             Text('${fmtDuration(outside)} of today is outside your working hours and is not counted.', textAlign: TextAlign.center),
             const SizedBox(height: 8),
             if (_regRequested)
@@ -254,28 +309,52 @@ class _PunchFlowScreenState extends ConsumerState<PunchFlowScreen> {
 
   Widget _failedView(ColorScheme scheme) {
     final d = _errorDetails ?? const {};
+    final text = Theme.of(context).textTheme;
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 72, color: scheme.error),
-            const SizedBox(height: 16),
-            Text(_error ?? 'Could not punch', style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
-            if (d['nearestSite'] != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('You are ${d['distanceM']} m from ${d['nearestSite']} (allowed ${d['radiusM']} m).', textAlign: TextAlign.center)),
-            const SizedBox(height: 24),
-            if (d['openSettings'] == true) OutlinedButton(onPressed: openAppSettings, child: const Text('Open settings')),
-            // Retrying cannot lift the daily punch limit; only the employer can.
-            if (_errorCode != 'PUNCH_LIMIT')
-              FilledButton(onPressed: () => setState(() {
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(color: scheme.error.withValues(alpha: 0.12), shape: BoxShape.circle),
+                  child: Icon(Icons.error_outline_rounded, size: 56, color: scheme.error),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(_error ?? 'Could not punch', style: text.titleLarge, textAlign: TextAlign.center),
+              if (d['nearestSite'] != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text('You are ${d['distanceM']} m from ${d['nearestSite']} (allowed ${d['radiusM']} m).', style: text.bodyMedium, textAlign: TextAlign.center),
+                ),
+              const SizedBox(height: 28),
+              if (d['openSettings'] == true) ...[
+                OutlinedButton.icon(onPressed: openAppSettings, icon: const Icon(Icons.settings_rounded), label: const Text('Open settings')),
+                const SizedBox(height: 10),
+              ],
+              // Retrying cannot lift the daily punch limit; only the employer can.
+              if (_errorCode != 'PUNCH_LIMIT')
+                FilledButton.icon(
+                  onPressed: () => setState(() {
                     _stage = _Stage.permissions;
                     _error = null;
                     _errorCode = null;
                     _run();
-                  }), child: const Text('Try again')),
-            TextButton(onPressed: () => context.pop(), child: const Text('Cancel')),
-          ],
+                  }),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Try again'),
+                ),
+              const SizedBox(height: 6),
+              TextButton(onPressed: () => context.pop(), child: const Text('Cancel')),
+            ],
+          ),
         ),
       ),
     );

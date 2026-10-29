@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../app/router.dart';
 import '../../../core/auth/app_lock_service.dart';
 import '../../../core/providers.dart';
+import '../../../app/theme/theme_providers.dart';
+import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/brand_logo.dart';
+import '../../../shared/widgets/gate_layout.dart';
 import 'pin_pad.dart';
 
 class UnlockScreen extends ConsumerStatefulWidget {
@@ -61,23 +65,21 @@ class _UnlockScreenState extends ConsumerState<UnlockScreen> {
   Widget build(BuildContext context) {
     final locked = _attempts >= AppLockService.maxAttempts;
     final message = ref.watch(sessionControllerProvider.select((s) => s.message));
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(),
-            Icon(Icons.lock_outline, size: 48, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 12),
-            Text('Enter your PIN', style: Theme.of(context).textTheme.headlineSmall),
-            if (message != null) Padding(padding: const EdgeInsets.all(16), child: Text(message, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.error))),
-            const SizedBox(height: 24),
-            if (_busy) const CircularProgressIndicator() else PinPad(value: _value, onChanged: locked ? (_) {} : _onChanged, onBiometric: _biometric && !locked ? _tryBiometric : null, error: _error),
-            const Spacer(),
-            TextButton(onPressed: () => context.go(Routes.pinReset), child: const Text('Forgot PIN?')),
-            const SizedBox(height: 16),
-          ],
+    final logoUrl = ref.watch(brandingProvider.select((b) => b.logoUrl));
+    return GateLayout(
+      logo: logoUrl == null ? null : CompanyLogo(name: '', logoUrl: logoUrl, size: 72, fallback: const AppMark(size: 64)),
+      title: 'Welcome back',
+      subtitle: _biometric && !locked ? 'Enter your PIN or use your fingerprint / face.' : 'Enter your PIN to continue.',
+      children: [
+        if (message != null) ...[GateNotice(message: message), const SizedBox(height: 16)],
+        SizedBox(
+          height: 400,
+          child: _busy
+              ? const AppLoader(label: 'Unlocking…', markSize: 48)
+              : PinPad(value: _value, onChanged: locked ? (_) {} : _onChanged, onBiometric: _biometric && !locked ? _tryBiometric : null, error: _error),
         ),
-      ),
+        TextButton(onPressed: () => context.go(Routes.pinReset), child: const Text('Forgot PIN?')),
+      ],
     );
   }
 }

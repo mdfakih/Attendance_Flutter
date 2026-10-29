@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_failure.dart';
 import '../../../core/providers.dart';
+import '../../../shared/widgets/busy_button.dart';
+import '../../../shared/widgets/gate_layout.dart';
 import 'activation_screen.dart';
 
 /// Shown while the employer approves this phone (DEVICE_APPROVAL feature). Polls every 15 s.
@@ -18,12 +20,13 @@ class PendingApprovalScreen extends ConsumerStatefulWidget {
 class _PendingApprovalScreenState extends ConsumerState<PendingApprovalScreen> {
   Timer? _timer;
   String? _error;
+  bool _checking = false;
 
   @override
   void initState() {
     super.initState();
     _timer = Timer.periodic(const Duration(seconds: 15), (_) => _check());
-    _check();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
   }
 
   @override
@@ -34,7 +37,8 @@ class _PendingApprovalScreenState extends ConsumerState<PendingApprovalScreen> {
 
   Future<void> _check() async {
     final bindingId = ref.read(sessionControllerProvider).pendingBindingId;
-    if (bindingId == null) return;
+    if (bindingId == null || _checking) return;
+    if (mounted) setState(() => _checking = true);
     try {
       final tokens = await ref.read(activationServiceProvider).bindingStatus(bindingId);
       if (tokens == null) return;
@@ -48,30 +52,23 @@ class _PendingApprovalScreenState extends ConsumerState<PendingApprovalScreen> {
       } else if (mounted) {
         setState(() => _error = failure.message);
       }
+    } finally {
+      if (mounted) setState(() => _checking = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.hourglass_top, size: 64),
-              const SizedBox(height: 16),
-              Text('Waiting for approval', style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 8),
-              const Text('Your employer needs to approve this phone before you can punch. We check automatically; you can also pull down to retry.', textAlign: TextAlign.center),
-              if (_error != null) ...[const SizedBox(height: 12), Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))],
-              const SizedBox(height: 24),
-              OutlinedButton.icon(onPressed: _check, icon: const Icon(Icons.refresh), label: const Text('Check now')),
-            ],
-          ),
-        ),
-      ),
+    return GateLayout(
+      icon: Icons.hourglass_top_rounded,
+      title: 'Waiting for approval',
+      subtitle: 'Your employer needs to approve this phone before you can punch. We check automatically every few seconds.',
+      children: [
+        if (_error != null) ...[GateNotice(message: _error!), const SizedBox(height: 16)],
+        const GateNotice(message: 'You can close the app. Approval is kept, and the app opens normally once it is approved.', error: false),
+        const SizedBox(height: 20),
+        BusyButton(label: _checking ? 'Checking…' : 'Check now', icon: Icons.refresh_rounded, busy: _checking, tonal: true, onPressed: _check),
+      ],
     );
   }
 }

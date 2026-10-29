@@ -4,6 +4,11 @@ import 'package:intl/intl.dart';
 
 import '../../../core/network/api_failure.dart';
 import '../../../core/providers.dart';
+import '../../../shared/widgets/busy_button.dart';
+import '../../../shared/widgets/month_switcher.dart';
+import '../../../shared/widgets/skeleton.dart';
+import '../../../shared/widgets/states.dart';
+import '../../../shared/widgets/status_pill.dart';
 
 /// Days of the month with time outside working hours, newest first, each with the employee's request (or null).
 final regularizationMonthProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>(
@@ -27,13 +32,16 @@ String regStateLabel(String state) => switch (state) {
       _ => state,
     };
 
-Color regStateColor(String state, ColorScheme scheme) => switch (state) {
-      'AVAILABLE' => Colors.orange,
-      'REQUESTED' => Colors.blue,
-      'APPROVED' => Colors.green,
-      'REJECTED' => scheme.error,
-      _ => Colors.grey,
-    };
+Color regStateColor(String state, ColorScheme scheme) {
+  final dark = scheme.brightness == Brightness.dark;
+  return switch (state) {
+    'AVAILABLE' => dark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+    'REQUESTED' => dark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8),
+    'APPROVED' => dark ? const Color(0xFF4ADE80) : const Color(0xFF15803D),
+    'REJECTED' => scheme.error,
+    _ => scheme.onSurfaceVariant,
+  };
+}
 
 /// Null when acceptable; mirrors the server's 5–500 character rule.
 String? regularizationReasonError(String reason) {
@@ -90,7 +98,6 @@ class _RegularizationScreenState extends ConsumerState<RegularizationScreen> {
   Widget build(BuildContext context) {
     final key = DateFormat('yyyy-MM').format(_month);
     final days = ref.watch(regularizationMonthProvider(key));
-    final isCurrent = key == DateFormat('yyyy-MM').format(DateTime.now());
     return Scaffold(
       appBar: AppBar(title: const Text('Time outside working hours')),
       body: RefreshIndicator(
@@ -98,34 +105,31 @@ class _RegularizationScreenState extends ConsumerState<RegularizationScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(onPressed: () => setState(() => _month = DateTime(_month.year, _month.month - 1)), icon: const Icon(Icons.chevron_left)),
-                Text(DateFormat('MMMM yyyy').format(_month), style: Theme.of(context).textTheme.titleMedium),
-                IconButton(onPressed: isCurrent ? null : () => setState(() => _month = DateTime(_month.year, _month.month + 1)), icon: const Icon(Icons.chevron_right)),
-              ],
-            ),
-            Text('Punches before your working hours start or after they end are recorded but not counted. If it was work, ask your employer to count it. Under 15 minutes on either side is ignored.',
-                style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 8),
+            MonthSwitcher(month: _month, onChanged: (m) => setState(() => _month = m)),
+            const SizedBox(height: 12),
+            const _Explainer(),
+            const SizedBox(height: 16),
             days.when(
-              loading: () => const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
-              error: (e, _) => Padding(padding: const EdgeInsets.all(16), child: Text(ApiFailure.from(e).message)),
+              loading: () => const Column(children: [SkeletonCard(lines: 4), SizedBox(height: 12), SkeletonCard(lines: 4)]),
+              error: (e, _) => Card(child: ErrorState(message: ApiFailure.from(e).message, onRetry: () => ref.invalidate(regularizationMonthProvider(key)))),
               data: (rows) {
-                if (rows.isEmpty) return const Padding(padding: EdgeInsets.all(32), child: Text('No time outside working hours this month.', textAlign: TextAlign.center));
+                if (rows.isEmpty) {
+                  return const Card(
+                    child: EmptyState(icon: Icons.event_available_rounded, title: 'All clear', message: 'No time outside working hours this month.'),
+                  );
+                }
                 _scrollToFocus();
                 return Column(
                   children: rows.map((d) {
                     final focused = d['date'] == _focusDate;
-                    return _DayCard(
+                    return Padding(padding: const EdgeInsets.only(bottom: 12), child: _DayCard(
                       key: focused ? _focusKey : ValueKey(d['date']),
                       day: d,
                       highlighted: focused,
                       onChanged: () {
                         if (mounted) ref.invalidate(regularizationMonthProvider(key));
                       },
-                    );
+                    ));
                   }).toList(),
                 );
               },
@@ -133,6 +137,29 @@ class _RegularizationScreenState extends ConsumerState<RegularizationScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _Explainer extends StatelessWidget {
+  const _Explainer();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: scheme.primary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.info_outline_rounded, size: 20, color: scheme.primary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Punches before your working hours start or after they end are recorded but not counted. If it was work, ask your employer to count it. Under 15 minutes on either side is ignored.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurface),
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -165,19 +192,20 @@ class _DayCardState extends ConsumerState<_DayCard> {
     final start = _hhmm(day['expectedStartAt']);
     final end = _hhmm(day['expectedEndAt']);
     return Card(
-      shape: widget.highlighted ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: scheme.primary, width: 2)) : null,
+      shape: widget.highlighted ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: scheme.primary, width: 2)) : null,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
               Expanded(child: Text(DateFormat('EEE, d MMM').format(DateTime.parse(day['date'] as String)), style: text.titleMedium)),
-              Chip(label: Text(regStateLabel(state)), visualDensity: VisualDensity.compact, side: BorderSide(color: regStateColor(state, scheme))),
+              StatusPill(label: regStateLabel(state), color: regStateColor(state, scheme)),
             ]),
-            if (start != null && end != null) Text('Working hours $start–$end'),
-            Text('Punched ${_hhmm(day['firstPunchAt']) ?? '—'} → ${_hhmm(day['lastPunchAt']) ?? '—'}'),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
+            if (start != null && end != null) _line(context, Icons.schedule_rounded, 'Working hours $start–$end'),
+            _line(context, Icons.fingerprint_rounded, 'Punched ${_hhmm(day['firstPunchAt']) ?? '—'} → ${_hhmm(day['lastPunchAt']) ?? '—'}'),
+            const SizedBox(height: 12),
             Text('${fmtDuration(outside)} outside working hours', style: text.titleSmall),
             Text([if (early > 0) '${fmtDuration(early)} before start', if (late > 0) '${fmtDuration(late)} after end'].join(' · '), style: text.bodySmall),
             if (request != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Your reason: ${request['reason']}', style: text.bodySmall)),
@@ -187,6 +215,15 @@ class _DayCardState extends ConsumerState<_DayCard> {
       ),
     );
   }
+
+  Widget _line(BuildContext context, IconData icon, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(children: [
+          Icon(icon, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(child: Text(value)),
+        ]),
+      );
 
   List<Widget> _outcome(String state, Map<String, dynamic>? request, int outside) {
     final note = request?['decisionNote'] as String?;
@@ -216,13 +253,13 @@ class _DayCardState extends ConsumerState<_DayCard> {
         return [
           const SizedBox(height: 8),
           Text(approved < outside ? '${fmtDuration(approved)} of ${fmtDuration(outside)} now counts as working time.' : '${fmtDuration(approved)} now counts as working time.',
-              style: const TextStyle(color: Colors.green)),
+              style: TextStyle(color: regStateColor('APPROVED', Theme.of(context).colorScheme), fontWeight: FontWeight.w600)),
           ?noteLine,
         ];
       case 'REJECTED':
         return [
           const SizedBox(height: 8),
-          Text('Your employer did not count this time.', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          Text('Your employer did not count this time.', style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w600)),
           ?noteLine,
         ];
       default:
@@ -296,10 +333,16 @@ class _RequestSheetState extends ConsumerState<_RequestSheet> {
           const SizedBox(height: 8),
           Text('${fmtDuration(widget.outsideMinutes)} on $day was outside your working hours, so it is not counted. If it was work, tell your employer why.'),
           const SizedBox(height: 16),
-          TextField(controller: _reason, decoration: const InputDecoration(labelText: 'Reason'), maxLines: 3, maxLength: 500, textCapitalization: TextCapitalization.sentences),
+          TextField(
+            controller: _reason,
+            decoration: const InputDecoration(labelText: 'Reason', hintText: 'e.g. Stock audit after closing'),
+            maxLines: 3,
+            maxLength: 500,
+            textCapitalization: TextCapitalization.sentences,
+          ),
           if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
           const SizedBox(height: 16),
-          FilledButton(onPressed: _busy ? null : _submit, child: const Text('Send request')),
+          BusyButton(label: 'Send request', icon: Icons.send_rounded, busy: _busy, onPressed: _submit),
         ],
       ),
     );
