@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/providers.dart';
 import '../../../core/storage/secure_storage.dart';
+import '../../../shared/widgets/busy_button.dart';
+import '../../../shared/widgets/gate_layout.dart';
 import '../../activation/presentation/activation_screen.dart';
 
 /// Forgot PIN: the employer issues a PIN-reset code; the request is signed by this phone's key.
@@ -51,21 +53,38 @@ class _PinResetScreenState extends ConsumerState<PinResetScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Reset PIN'), leading: BackButton(onPressed: () => context.pop())),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const Text('Ask your employer for a PIN reset code. It only works on the phone that is already registered to you.'),
-          const SizedBox(height: 24),
-          TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile number', prefixText: '+91 ')),
-          const SizedBox(height: 16),
-          TextField(controller: _code, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Reset code', hintText: 'ABCD-EFGH')),
-          if (_error != null) ...[const SizedBox(height: 12), Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))],
-          const SizedBox(height: 24),
-          FilledButton(onPressed: _busy ? null : _submit, child: const Text('Continue')),
-        ],
-      ),
+    return GateLayout(
+      appBar: AppBar(leading: BackButton(onPressed: () => context.pop())),
+      icon: Icons.password_rounded,
+      title: 'Reset PIN',
+      subtitle: 'Ask your employer for a PIN reset code. It only works on the phone that is already registered to you.',
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _phone,
+                  keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'Mobile number', prefixText: '+91 ', prefixIcon: Icon(Icons.phone_iphone_rounded)),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _code,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(labelText: 'Reset code', hintText: 'ABCD-EFGH', prefixIcon: Icon(Icons.key_rounded)),
+                ),
+                if (_error != null) ...[const SizedBox(height: 12), Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w600))],
+                const SizedBox(height: 20),
+                BusyButton(label: 'Continue', icon: Icons.arrow_forward_rounded, busy: _busy, onPressed: _submit),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

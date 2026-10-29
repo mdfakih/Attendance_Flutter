@@ -7,6 +7,9 @@ import '../core/config/env.dart';
 import '../core/notifications/notification_taps.dart';
 import '../core/providers.dart';
 import 'router.dart';
+import 'theme/app_theme.dart';
+import 'theme/branding.dart';
+import 'theme/theme_providers.dart';
 
 class AttendanceApp extends ConsumerStatefulWidget {
   const AttendanceApp({super.key});
@@ -27,6 +30,18 @@ class _AttendanceAppState extends ConsumerState<AttendanceApp> with WidgetsBindi
     _router.routerDelegate.addListener(_openTapped);
     NotificationTaps.pending.addListener(_openTapped);
     ref.listenManual(sessionControllerProvider.select((s) => s.phase), (_, _) => _openTapped());
+    ref.listenManual(sessionControllerProvider, (_, session) => _syncBranding(session));
+  }
+
+  /// The company's colours follow the loaded profile; a released phone goes back to the defaults.
+  void _syncBranding(SessionState session) {
+    final me = session.me;
+    final branding = ref.read(brandingProvider.notifier);
+    if (me != null) {
+      branding.apply(Branding.fromJson(me.company['branding']));
+    } else if (session.phase == SessionPhase.needsActivation) {
+      branding.reset();
+    }
   }
 
   @override
@@ -44,7 +59,7 @@ class _AttendanceAppState extends ConsumerState<AttendanceApp> with WidgetsBindi
     if (data == null || ref.read(sessionControllerProvider).phase != SessionPhase.ready) return;
     if (Routes.gates.contains(_router.routerDelegate.currentConfiguration.uri.path)) return;
     NotificationTaps.pending.value = null;
-    final route = notificationRoute(data);
+    final route = notificationRoute(data, extraTime: ref.read(sessionControllerProvider).me?.extraTimeEnabled ?? true);
     if (route == null) return;
     // Outside the listener callback, which may run while the router is notifying.
     Future.microtask(() {
@@ -72,16 +87,13 @@ class _AttendanceAppState extends ConsumerState<AttendanceApp> with WidgetsBindi
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
-    final scheme = ColorScheme.fromSeed(seedColor: const Color(0xFF1F5EFF));
+    final branding = ref.watch(brandingProvider);
     return MaterialApp.router(
-      title: 'Attendance',
+      title: Env.appName,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: scheme,
-        useMaterial3: true,
-        inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
-        filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52))),
-      ),
+      theme: AppTheme.light(branding),
+      darkTheme: AppTheme.dark(branding),
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: router,
     );
   }

@@ -10,6 +10,12 @@ abstract final class SecureKeys {
   static const biometricEnabled = 'biometric_enabled';
   static const phone = 'phone';
   static const pendingBindingId = 'pending_binding_id';
+
+  /// Last company branding (JSON), so the next cold start opens in the company's colours.
+  static const branding = 'branding_v1';
+
+  /// 'system' | 'light' | 'dark'; a device preference kept across sessions.
+  static const themeMode = 'theme_mode';
 }
 
 class SecureStore {
@@ -21,7 +27,7 @@ class SecureStore {
   Future<void> write(String key, String value) => _storage.write(key: key, value: value);
   Future<void> delete(String key) => _storage.delete(key: key);
   Future<void> clearSession() async {
-    for (final key in [SecureKeys.refreshToken, SecureKeys.bindingId, SecureKeys.pinHash, SecureKeys.pinSalt, SecureKeys.biometricEnabled, SecureKeys.pendingBindingId]) {
+    for (final key in [SecureKeys.refreshToken, SecureKeys.bindingId, SecureKeys.pinHash, SecureKeys.pinSalt, SecureKeys.biometricEnabled, SecureKeys.pendingBindingId, SecureKeys.branding]) {
       await _storage.delete(key: key);
     }
   }

@@ -22,6 +22,9 @@ class Me {
   final Map<String, dynamic>? notice;
 
   bool has(String feature) => features[feature] == true;
+
+  /// Extra time requests (regularization); older servers do not send the key, so missing means on.
+  bool get extraTimeEnabled => features['EXTRA_TIME'] != false;
   String get fullName => employee['fullName'] as String? ?? '';
   String get companyName => company['name'] as String? ?? '';
 

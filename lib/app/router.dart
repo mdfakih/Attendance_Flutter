@@ -19,6 +19,7 @@ import '../features/profile/presentation/profile_screen.dart';
 import '../features/punch/presentation/punch_flow_screen.dart';
 import '../features/regularization/presentation/regularization_screen.dart';
 import '../features/shell/home_shell.dart';
+import '../shared/widgets/app_loader.dart';
 
 abstract final class Routes {
   static const splash = '/';
@@ -44,17 +45,18 @@ abstract final class Routes {
 }
 
 /// Screen for a tapped notification (FCM push, in-app list or local reminder) by its `data.type`; null = none.
-String? notificationRoute(Map<String, dynamic> data) {
+/// With extra time requests switched off, their notifications open home instead.
+String? notificationRoute(Map<String, dynamic> data, {bool extraTime = true}) {
   final date = data['date'];
   return switch (data['type']) {
-    'OUTSIDE_HOURS' || 'REGULARIZATION_DECISION' => Routes.regularizationOn(date is String ? date : null),
+    'OUTSIDE_HOURS' || 'REGULARIZATION_DECISION' => extraTime ? Routes.regularizationOn(date is String ? date : null) : Routes.home,
     PunchReminder.type => Routes.home,
     _ => null,
   };
 }
 
-String? _redirectFor(SessionPhase phase, String location) {
-  switch (phase) {
+String? _redirectFor(SessionState session, String location) {
+  switch (session.phase) {
     case SessionPhase.loading:
       return location == Routes.splash ? null : Routes.splash;
     case SessionPhase.needsActivation:
@@ -68,6 +70,7 @@ String? _redirectFor(SessionPhase phase, String location) {
     case SessionPhase.needsConsent:
       return location == Routes.consent ? null : Routes.consent;
     case SessionPhase.ready:
+      if (location == Routes.regularization && !(session.me?.extraTimeEnabled ?? true)) return Routes.home;
       return Routes.gates.contains(location) ? Routes.home : null;
   }
 }
@@ -84,9 +87,9 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: Routes.splash,
     refreshListenable: notifier,
-    redirect: (context, state) => _redirectFor(ref.read(sessionControllerProvider).phase, state.matchedLocation),
+    redirect: (context, state) => _redirectFor(ref.read(sessionControllerProvider), state.matchedLocation),
     routes: [
-      GoRoute(path: Routes.splash, builder: (_, _) => const Scaffold(body: Center(child: CircularProgressIndicator()))),
+      GoRoute(path: Routes.splash, builder: (_, _) => const BrandedSplash()),
       GoRoute(path: Routes.activation, builder: (_, _) => const ActivationScreen()),
       GoRoute(path: Routes.pending, builder: (_, _) => const PendingApprovalScreen()),
       GoRoute(path: Routes.setPin, builder: (_, _) => const SetPinScreen()),

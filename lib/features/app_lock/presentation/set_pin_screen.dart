@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
+import '../../../shared/widgets/gate_layout.dart';
 import 'pin_pad.dart';
 
 class SetPinScreen extends ConsumerStatefulWidget {
@@ -58,20 +59,39 @@ class _SetPinScreenState extends ConsumerState<SetPinScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(),
-            Text(_confirming ? 'Confirm your PIN' : 'Create a 6-digit PIN', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 8),
-            const Padding(padding: EdgeInsets.symmetric(horizontal: 32), child: Text('You will use it to open the app on this phone.', textAlign: TextAlign.center)),
-            const SizedBox(height: 32),
-            PinPad(value: _value, onChanged: _onChanged, error: _error),
-            const Spacer(),
-          ],
-        ),
-      ),
+    return GateLayout(
+      icon: _confirming ? Icons.lock_rounded : Icons.lock_open_rounded,
+      title: _confirming ? 'Confirm your PIN' : 'Create a 6-digit PIN',
+      subtitle: _confirming ? 'Enter the same PIN again.' : 'You will use it to open the app on this phone.',
+      children: [
+        _Steps(step: _confirming ? 2 : 1),
+        const SizedBox(height: 20),
+        PinPad(value: _value, onChanged: _onChanged, error: _error),
+      ],
+    );
+  }
+}
+
+class _Steps extends StatelessWidget {
+  const _Steps({required this.step});
+
+  final int step;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 1; i <= 2; i++)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: i == step ? 28 : 10,
+            height: 6,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(color: i <= step ? scheme.primary : scheme.outlineVariant, borderRadius: BorderRadius.circular(3)),
+          ),
+      ],
     );
   }
 }
