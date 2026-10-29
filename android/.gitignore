@@ -12,3 +12,6 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Firebase config for project attendance-bd2f9; download it from the Firebase console.
+/app/google-services.json

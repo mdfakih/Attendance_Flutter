@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Build-time config per environment (keep the *.example.json templates)
+/env/*.json
+!/env/*.example.json
+
+# Firebase app config; download from the Firebase console (Android's is ignored in android/.gitignore)
+/ios/Runner/GoogleService-Info.plist
