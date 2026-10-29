@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/auth/session_controller.dart';
+import '../core/notifications/punch_reminder.dart';
 import '../core/providers.dart';
 import '../features/activation/presentation/activation_screen.dart';
 import '../features/activation/presentation/pending_approval_screen.dart';
@@ -16,6 +17,7 @@ import '../features/leave/presentation/leave_screen.dart';
 import '../features/onboarding/presentation/consent_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/punch/presentation/punch_flow_screen.dart';
+import '../features/regularization/presentation/regularization_screen.dart';
 import '../features/shell/home_shell.dart';
 
 abstract final class Routes {
@@ -29,9 +31,26 @@ abstract final class Routes {
   static const home = '/home';
   static const punch = '/home/punch';
   static const attendance = '/attendance';
+  static const regularization = '/attendance/regularization';
   static const leave = '/leave';
   static const earnings = '/earnings';
   static const profile = '/profile';
+
+  /// Screens before the session is ready; once ready they redirect to home.
+  static const gates = {splash, activation, pending, setPin, unlock, consent};
+
+  /// Regularization screen, optionally opened on a day ('YYYY-MM-DD').
+  static String regularizationOn(String? date) => date == null ? regularization : Uri(path: regularization, queryParameters: {'date': date}).toString();
+}
+
+/// Screen for a tapped notification (FCM push, in-app list or local reminder) by its `data.type`; null = none.
+String? notificationRoute(Map<String, dynamic> data) {
+  final date = data['date'];
+  return switch (data['type']) {
+    'OUTSIDE_HOURS' || 'REGULARIZATION_DECISION' => Routes.regularizationOn(date is String ? date : null),
+    PunchReminder.type => Routes.home,
+    _ => null,
+  };
 }
 
 String? _redirectFor(SessionPhase phase, String location) {
@@ -49,8 +68,7 @@ String? _redirectFor(SessionPhase phase, String location) {
     case SessionPhase.needsConsent:
       return location == Routes.consent ? null : Routes.consent;
     case SessionPhase.ready:
-      const gates = {Routes.splash, Routes.activation, Routes.pending, Routes.setPin, Routes.unlock, Routes.consent};
-      return gates.contains(location) ? Routes.home : null;
+      return Routes.gates.contains(location) ? Routes.home : null;
   }
 }
 
@@ -76,6 +94,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: Routes.pinReset, builder: (_, _) => const PinResetScreen()),
       GoRoute(path: Routes.consent, builder: (_, _) => const ConsentScreen()),
       GoRoute(path: Routes.punch, builder: (_, _) => const PunchFlowScreen()),
+      GoRoute(path: Routes.regularization, builder: (_, state) => RegularizationScreen(focusDate: state.uri.queryParameters['date'])),
       ShellRoute(
         builder: (_, _, child) => HomeShell(child: child),
         routes: [

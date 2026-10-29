@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import '../../../app/router.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/providers.dart';
+import '../../regularization/presentation/regularization_screen.dart';
 
 final monthViewProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>(
   (ref, month) => ref.watch(apiProvider).get<Map<String, dynamic>>('/v1/mobile/attendance/month', query: {'month': month}),
@@ -51,8 +54,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       days[(d as Map)['date'] as String] = d.cast<String, dynamic>();
     }
     final totals = view.valueOrNull?['totals'] as Map<String, dynamic>?;
+    final outside = days.values.fold<int>(0, (sum, d) => sum + (d['outsideMinutes'] as int? ?? 0));
     return Scaffold(
-      appBar: AppBar(title: const Text('My attendance')),
+      appBar: AppBar(title: const Text('My attendance'), actions: [
+        IconButton(tooltip: 'Time outside working hours', onPressed: () => context.push<void>(Routes.regularization), icon: const Icon(Icons.more_time)),
+      ]),
       body: ListView(
         children: [
           TableCalendar<void>(
@@ -92,6 +98,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   _chip('Leave ${totals['leave']}', Colors.purple),
                   _chip('Late ${totals['late']}', Colors.grey),
                   _chip('Hours ${fmtMinutes(totals['workedMinutes'] as int)}', Colors.blueGrey),
+                  if (outside > 0) _chip('Outside hours ${fmtDuration(outside)}', Colors.amber),
                 ],
               ),
             ),
@@ -141,6 +148,7 @@ class _DaySheet extends ConsumerWidget {
                 if (day != null) Text('${fmtMinutes(day['workedMinutes'] as int)} worked${day['isLate'] == true ? ' · ${day['lateMinutes']} min late' : ''}'),
               ]),
               if (day?['statusSource'] == 'MANUAL') const Padding(padding: EdgeInsets.only(top: 4), child: Text('Set by your employer', style: TextStyle(fontSize: 12))),
+              if (day != null && (day['outsideMinutes'] as int? ?? 0) > 0) _outside(context, ref, day),
               const SizedBox(height: 12),
               if (punches.isEmpty) const Text('No punches on this day.'),
               for (final p in punches)
@@ -154,6 +162,31 @@ class _DaySheet extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+
+  /// Punch time outside working hours: shown, but counted only once the employer approves it.
+  Widget _outside(BuildContext context, WidgetRef ref, Map<String, dynamic> day) {
+    final state = day['regState'] as String? ?? 'NOT_APPLICABLE';
+    final early = day['outsideEarlyMinutes'] as int? ?? 0;
+    final late = day['outsideLateMinutes'] as int? ?? 0;
+    final parts = [if (early > 0) '${fmtDuration(early)} before start', if (late > 0) '${fmtDuration(late)} after end'].join(', ');
+    final outcome = state == 'APPROVED' ? '${fmtDuration(day['regApprovedMinutes'] as int? ?? 0)} counted' : regStateLabel(state);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(children: [
+        Expanded(child: Text('${fmtDuration(day['outsideMinutes'] as int)} outside working hours${parts.isEmpty ? '' : ' ($parts)'}${state == 'NOT_APPLICABLE' ? '' : ' · $outcome'}')),
+        if (state != 'NOT_APPLICABLE')
+          TextButton(
+            onPressed: () async {
+              await context.push<void>(Routes.regularizationOn(date));
+              if (!context.mounted) return;
+              ref.invalidate(dayDetailProvider(date));
+              ref.invalidate(monthViewProvider);
+            },
+            child: Text(state == 'AVAILABLE' ? 'Ask to count' : 'View'),
+          ),
+      ]),
     );
   }
 }

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../network/api_failure.dart';
+import '../notifications/punch_reminder.dart';
 import '../network/dio_client.dart';
 import '../storage/secure_storage.dart';
 import 'app_lock_service.dart';
@@ -119,6 +122,7 @@ class SessionController extends StateNotifier<SessionState> {
     await tokens.clear();
     await lock.clearPin();
     await store.clearSession();
+    unawaited(PunchReminder.cancel());
     state = const SessionState(phase: SessionPhase.needsActivation, message: 'This phone is no longer registered. Ask your employer for a new activation code.');
   }
 }

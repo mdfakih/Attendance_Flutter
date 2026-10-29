@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../app/router.dart';
 import '../../../core/config/env.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/providers.dart';
@@ -67,7 +69,18 @@ class ProfileScreen extends ConsumerWidget {
             error: (e, _) => ListTile(title: Text(ApiFailure.from(e).message)),
             data: (rows) => rows.isEmpty
                 ? const ListTile(title: Text('Nothing yet.'))
-                : Column(children: rows.take(20).map((n) => ListTile(dense: true, title: Text(n['title'] as String), subtitle: Text(n['body'] as String), trailing: Text(fmt.format(DateTime.parse(n['createdAt'] as String).toLocal())))).toList()),
+                : Column(
+                    children: rows.take(20).map((n) {
+                      final route = notificationRoute({...?(n['data'] as Map?)?.cast<String, dynamic>(), 'type': n['type']});
+                      return ListTile(
+                        dense: true,
+                        title: Text(n['title'] as String),
+                        subtitle: Text(n['body'] as String),
+                        trailing: Text(fmt.format(DateTime.parse(n['createdAt'] as String).toLocal())),
+                        onTap: route == null ? null : () => context.push<void>(route),
+                      );
+                    }).toList(),
+                  ),
           ),
           const SizedBox(height: 16),
           Center(child: Text('Version ${Env.appVersion}', style: Theme.of(context).textTheme.bodySmall)),

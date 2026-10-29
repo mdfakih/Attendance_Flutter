@@ -2,6 +2,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
+import 'notification_taps.dart';
+
 /// Firebase is used for push only (no Firebase Auth). Initialisation is best-effort so the
 /// app works before `google-services.json` is added.
 abstract final class PushService {
@@ -11,6 +13,10 @@ abstract final class PushService {
     try {
       await Firebase.initializeApp();
       _ready = true;
+      // A tapped push (app in background or closed) opens its screen once the app is unlocked.
+      FirebaseMessaging.onMessageOpenedApp.listen((m) => NotificationTaps.add(m.data));
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) NotificationTaps.add(initial.data);
     } catch (e) {
       debugPrint('Push disabled: $e');
     }
