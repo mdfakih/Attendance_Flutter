@@ -123,7 +123,7 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
         const _Hint(icon: Icons.lock_outline_rounded, text: 'The code works once and links this phone to you.'),
         const _Hint(icon: Icons.qr_code_2_rounded, text: 'Got a QR code? Tap the scan icon to fill the code.'),
         const SizedBox(height: 8),
-        TextButton(onPressed: () => context.go(Routes.pinReset), child: const Text('Already activated but forgot your PIN?')),
+        TextButton(onPressed: () => context.push<void>(Routes.pinReset), child: const Text('Already activated but forgot your PIN?')),
       ],
     );
   }

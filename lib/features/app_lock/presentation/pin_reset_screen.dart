@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/router.dart';
+import '../../../core/auth/session_controller.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/providers.dart';
 import '../../../core/storage/secure_storage.dart';
@@ -51,10 +53,17 @@ class _PinResetScreenState extends ConsumerState<PinResetScreen> {
     }
   }
 
+  /// Opened with push from unlock / activation; with nothing beneath (e.g. a restored route) go back to the gate.
+  void _back() {
+    if (context.canPop()) return context.pop();
+    final locked = ref.read(sessionControllerProvider).phase == SessionPhase.locked;
+    context.go(locked ? Routes.unlock : Routes.activation);
+  }
+
   @override
   Widget build(BuildContext context) {
     return GateLayout(
-      appBar: AppBar(leading: BackButton(onPressed: () => context.pop())),
+      appBar: AppBar(leading: BackButton(onPressed: _back)),
       icon: Icons.password_rounded,
       title: 'Reset PIN',
       subtitle: 'Ask your employer for a PIN reset code. It only works on the phone that is already registered to you.',

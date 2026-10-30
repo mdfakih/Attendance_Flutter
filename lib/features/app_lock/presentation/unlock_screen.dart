@@ -95,7 +95,7 @@ class _UnlockScreenState extends ConsumerState<UnlockScreen> {
               ? const AppLoader(label: 'Unlocking…', markSize: 48)
               : PinPad(value: _value, onChanged: locked ? (_) {} : _onChanged, onBiometric: _biometric && !locked ? _tryBiometric : null, error: _error),
         ),
-        TextButton(onPressed: () => context.go(Routes.pinReset), child: const Text('Forgot PIN?')),
+        TextButton(onPressed: () => context.push<void>(Routes.pinReset), child: const Text('Forgot PIN?')),
       ],
     );
   }
