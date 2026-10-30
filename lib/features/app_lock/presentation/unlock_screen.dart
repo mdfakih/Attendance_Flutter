@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../core/auth/app_lock_service.dart';
+import '../../../core/auth/session_controller.dart';
 import '../../../core/providers.dart';
 import '../../../app/theme/theme_providers.dart';
 import '../../../shared/widgets/app_loader.dart';
@@ -36,7 +37,15 @@ class _UnlockScreenState extends ConsumerState<UnlockScreen> {
   }
 
   Future<void> _tryBiometric() async {
-    if (await ref.read(appLockProvider).authenticateBiometric()) await _success();
+    final result = await ref.read(appLockProvider).authenticateBiometric();
+    if (!mounted) return;
+    if (!result.ok) {
+      // A cancel stays silent; a real failure (lockout, nothing enrolled) says why under the pad.
+      if (result.error != null) setState(() => _error = result.error);
+      return;
+    }
+    setState(() => _busy = true);
+    await _success();
   }
 
   Future<void> _onChanged(String v) async {
@@ -59,6 +68,14 @@ class _UnlockScreenState extends ConsumerState<UnlockScreen> {
 
   Future<void> _success() async {
     await ref.read(sessionControllerProvider.notifier).unlocked();
+    // Still locked means the profile load failed (its message is shown above): drop the loader so
+    // the user can retry instead of facing a stuck spinner. On success the router moves on.
+    if (mounted && ref.read(sessionControllerProvider).phase == SessionPhase.locked) {
+      setState(() {
+        _busy = false;
+        _value = '';
+      });
+    }
   }
 
   @override

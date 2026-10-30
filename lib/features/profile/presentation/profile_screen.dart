@@ -66,7 +66,9 @@ class ProfileScreen extends ConsumerWidget {
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () async {
                   final lock = ref.read(appLockProvider);
-                  var ok = await lock.authenticateBiometric();
+                  // Only offer the fingerprint if the user turned it on; the PIN dialog covers
+                  // every other case, including a cancelled or failed prompt.
+                  var ok = await lock.biometricEnabled() && (await lock.authenticateBiometric()).ok;
                   if (!ok && context.mounted) ok = await _confirmPin(context, ref);
                   if (ok) {
                     await lock.clearPin();
