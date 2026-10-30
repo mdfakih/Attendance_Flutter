@@ -3,8 +3,10 @@ import 'package:attendance_app/app/theme/app_palette.dart';
 import 'package:attendance_app/app/theme/app_theme.dart';
 import 'package:attendance_app/app/theme/branding.dart';
 import 'package:attendance_app/app/theme/theme_providers.dart';
+import 'package:attendance_app/core/config/env.dart';
 import 'package:attendance_app/features/home/presentation/widgets/today_view.dart';
 import 'package:attendance_app/features/punch/data/punch_service.dart';
+import 'package:attendance_app/shared/widgets/brand_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -67,6 +69,20 @@ void main() {
       expect(themeModeFromName('light'), ThemeMode.light);
       expect(themeModeFromName(null), ThemeMode.system);
       expect(themeModeFromName('purple'), ThemeMode.system);
+    });
+  });
+
+  group('Product identity', () {
+    testWidgets('wordmark reads KamaiGo with "Go" in the brand colour', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light(Branding.defaults),
+        home: const Scaffold(body: Column(children: [AppMark(size: 48), BrandWordmark()])),
+      ));
+      expect(Env.appName, 'KamaiGo');
+      expect(find.text('KamaiGo', findRichText: true), findsOneWidget);
+      final rich = tester.widget<Text>(find.byType(Text)).textSpan! as TextSpan;
+      expect((rich.children!.single as TextSpan).style?.color, Branding.defaults.primary);
+      expect(tester.takeException(), isNull);
     });
   });
 

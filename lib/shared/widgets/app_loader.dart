@@ -54,7 +54,7 @@ class BrandedSplash extends StatelessWidget {
                 const Spacer(flex: 3),
                 const _Pulse(child: AppMark(size: 84)),
                 const SizedBox(height: 24),
-                Text(Env.appName, style: text.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+                BrandWordmark(style: text.headlineMedium),
                 const SizedBox(height: 6),
                 Text(Env.tagline, style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                 const Spacer(flex: 2),

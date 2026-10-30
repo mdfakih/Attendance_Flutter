@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:local_auth/local_auth.dart';
 
+import '../config/env.dart';
 import '../storage/secure_storage.dart';
 
 /// Local PIN (PBKDF2-HMAC-SHA256, 100k rounds) and biometric unlock. The server is never involved.
@@ -51,7 +52,7 @@ class AppLockService {
   Future<bool> authenticateBiometric() async {
     try {
       return await _auth.authenticate(
-        localizedReason: 'Unlock the attendance app',
+        localizedReason: 'Unlock ${Env.appName}',
         biometricOnly: true,
         persistAcrossBackgrounding: true,
       );

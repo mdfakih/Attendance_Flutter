@@ -9,7 +9,11 @@ abstract final class Env {
   static const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
 
   /// Product name, the same on the web dashboard. Also set in AndroidManifest.xml and Info.plist.
-  static const appName = 'Attendly';
+  static const appName = '$appNameBase$appNameAccent';
+
+  /// The wordmark sets the accent part in the brand colour: Kamai·Go.
+  static const appNameBase = 'Kamai';
+  static const appNameAccent = 'Go';
   static const tagline = 'Attendance made simple';
 
   /// Minutes in background before the app re-locks.

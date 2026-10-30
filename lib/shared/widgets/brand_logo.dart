@@ -3,8 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_theme.dart';
+import '../../core/config/env.dart';
 
-/// The product mark: a ring with a tick, on the brand gradient.
+/// The product mark: a "K" whose upper arm is a rising arrow (kamai, going up), on the brand gradient.
 class AppMark extends StatelessWidget {
   const AppMark({super.key, this.size = 56});
 
@@ -17,7 +18,7 @@ class AppMark extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * 0.3),
+        borderRadius: BorderRadius.circular(size * 13 / 48),
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [scheme.primary, scheme.secondary]),
         boxShadow: [BoxShadow(color: scheme.primary.withValues(alpha: 0.28), blurRadius: size * 0.35, offset: Offset(0, size * 0.12))],
       ),
@@ -26,32 +27,63 @@ class AppMark extends StatelessWidget {
   }
 }
 
+/// Same geometry as the web icon and the launcher icons: a 48-unit grid, 4.4-unit round strokes.
 class _MarkPainter extends CustomPainter {
   _MarkPainter(this.color);
 
   final Color color;
 
+  static final _glyph = Path()
+    ..moveTo(15.5, 12.5)
+    ..lineTo(15.5, 35.5) // stem
+    ..moveTo(15.5, 29.5)
+    ..lineTo(32.5, 12.5) // rising arm
+    ..moveTo(24.5, 12.5)
+    ..lineTo(32.5, 12.5)
+    ..lineTo(32.5, 20.5) // arrowhead
+    ..moveTo(22.5, 22.5)
+    ..lineTo(32.5, 35.5); // leg
+
   @override
   void paint(Canvas canvas, Size size) {
-    final stroke = size.width * 0.085;
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
+      ..strokeWidth = 4.4
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    final rect = Rect.fromCircle(center: size.center(Offset.zero), radius: size.width * 0.3);
-    canvas.drawArc(rect, -math.pi / 2 + 0.55, math.pi * 2 - 1.1, false, paint);
-    final w = size.width;
-    final tick = Path()
-      ..moveTo(w * 0.36, w * 0.51)
-      ..lineTo(w * 0.47, w * 0.61)
-      ..lineTo(w * 0.66, w * 0.40);
-    canvas.drawPath(tick, paint);
+    canvas
+      ..save()
+      ..scale(size.width / 48)
+      ..drawPath(_glyph, paint)
+      ..restore();
   }
 
   @override
   bool shouldRepaint(_MarkPainter oldDelegate) => oldDelegate.color != color;
+}
+
+/// The product name as a wordmark: "Kamai" in the text colour, "Go" in the brand colour.
+class BrandWordmark extends StatelessWidget {
+  const BrandWordmark({super.key, this.style, this.accentColor});
+
+  final TextStyle? style;
+
+  /// Defaults to the brand primary.
+  final Color? accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = (style ?? Theme.of(context).textTheme.titleLarge)?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3);
+    return Text.rich(
+      TextSpan(
+        text: Env.appNameBase,
+        children: [TextSpan(text: Env.appNameAccent, style: TextStyle(color: accentColor ?? Theme.of(context).colorScheme.primary))],
+      ),
+      style: base,
+      semanticsLabel: Env.appName,
+    );
+  }
 }
 
 /// The company's logo, or its initials on the brand colour when there is no logo or it fails to load.

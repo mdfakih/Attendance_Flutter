@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The KamaiGo app mark (rounded gradient tile) shown on the pre-Android 12 launch screen. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path android:pathData="M13,0h22a13,13 0,0 1,13 13v22a13,13 0,0 1,-13 13h-22a13,13 0,0 1,-13 -13v-22a13,13 0,0 1,13 -13z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="48"
+                android:endY="48"
+                android:startColor="#FF4F46E5"
+                android:endColor="#FF0EA5E9" />
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M15.5,12.5v23 M15.5,29.5L32.5,12.5 M24.5,12.5h8v8 M22.5,22.5l10,13"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

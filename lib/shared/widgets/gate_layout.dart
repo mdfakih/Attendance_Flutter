@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/config/env.dart';
 import 'brand_logo.dart';
 
 /// Centered, scrollable layout for the screens before the app opens (activation, PIN, approval).
@@ -44,7 +43,7 @@ class GateLayout extends StatelessWidget {
                   Center(child: logo ?? (icon != null ? _IconBadge(icon: icon!) : const AppMark(size: 64))),
                   if (logo == null && icon == null) ...[
                     const SizedBox(height: 10),
-                    Text(Env.appName, textAlign: TextAlign.center, style: text.titleSmall?.copyWith(color: scheme.primary, letterSpacing: 0.4)),
+                    Center(child: BrandWordmark(style: text.titleMedium)),
                   ],
                   const SizedBox(height: 20),
                   Text(title, textAlign: TextAlign.center, style: text.headlineSmall),
