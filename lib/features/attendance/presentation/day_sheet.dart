@@ -14,9 +14,12 @@ import 'calendar_screen.dart';
 
 /// One day's status, worked time, time outside working hours and punches.
 class DaySheet extends ConsumerWidget {
-  const DaySheet({super.key, required this.date});
+  const DaySheet({super.key, required this.date, this.holidayName});
 
   final String date;
+
+  /// From the month view; an upcoming holiday has no stored day yet.
+  final String? holidayName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,7 +37,7 @@ class DaySheet extends ConsumerWidget {
             detail.when(
               loading: () => const SkeletonList(count: 3),
               error: (e, _) => ErrorState(message: ApiFailure.from(e).message, onRetry: () => ref.invalidate(dayDetailProvider(date)), compact: true),
-              data: (d) => _Body(date: date, detail: d),
+              data: (d) => _Body(date: date, detail: d, holidayName: holidayName),
             ),
           ],
         ),
@@ -44,17 +47,18 @@ class DaySheet extends ConsumerWidget {
 }
 
 class _Body extends ConsumerWidget {
-  const _Body({required this.date, required this.detail});
+  const _Body({required this.date, required this.detail, this.holidayName});
 
   final String date;
   final Map<String, dynamic> detail;
+  final String? holidayName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final text = Theme.of(context).textTheme;
     final day = detail['day'] as Map<String, dynamic>?;
     final punches = (detail['punches'] as List).cast<Map<String, dynamic>>();
-    final status = day?['status'] as String? ?? 'NOT_STARTED';
+    final status = day?['status'] as String? ?? (holidayName != null ? 'HOLIDAY' : 'NOT_STARTED');
     final extraTime = ref.watch(sessionControllerProvider.select((s) => s.me?.extraTimeEnabled ?? true));
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -65,6 +69,7 @@ class _Body extends ConsumerWidget {
           if (day != null)
             Text('${fmtMinutes(day['workedMinutes'] as int)} worked${day['isLate'] == true ? ' · ${day['lateMinutes']} min late' : ''}', style: text.bodyMedium),
         ]),
+        if (holidayName != null && status == 'HOLIDAY') Padding(padding: const EdgeInsets.only(top: 6), child: Text(holidayName!, style: text.bodyMedium)),
         if (day?['statusSource'] == 'MANUAL') Padding(padding: const EdgeInsets.only(top: 6), child: Text('Set by your employer', style: text.bodySmall)),
         if (day != null && (day['outsideMinutes'] as int? ?? 0) > 0) _Outside(date: date, day: day, canAsk: extraTime),
         const SizedBox(height: 16),

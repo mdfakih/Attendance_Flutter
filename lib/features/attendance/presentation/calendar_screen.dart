@@ -105,7 +105,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           _selected = sel;
           _focused = foc;
         });
-        _openDay(DateFormat('yyyy-MM-dd').format(sel));
+        final date = DateFormat('yyyy-MM-dd').format(sel);
+        _openDay(date, days[date]?['holidayName'] as String?);
       },
       onPageChanged: (foc) => setState(() => _focused = foc),
       headerStyle: HeaderStyle(
@@ -141,8 +142,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
   }
 
-  void _openDay(String date) {
-    showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => DaySheet(date: date));
+  void _openDay(String date, String? holidayName) {
+    showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (_) => DaySheet(date: date, holidayName: holidayName));
   }
 }
 
