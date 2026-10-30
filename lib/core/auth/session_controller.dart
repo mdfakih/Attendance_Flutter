@@ -108,6 +108,11 @@ class SessionController extends StateNotifier<SessionState> {
   Future<void> refreshMe() async {
     try {
       final me = Me.fromJson(await api().get<Map<String, dynamic>>('/v1/mobile/me'));
+      // The app may have re-locked while the request was in flight; never let a late reply unlock it.
+      if (state.phase != SessionPhase.ready && state.phase != SessionPhase.needsConsent) {
+        state = state.copyWith(me: me);
+        return;
+      }
       state = SessionState(phase: me.consentRequired ? SessionPhase.needsConsent : SessionPhase.ready, me: me);
     } on ApiFailure catch (e) {
       if (e.isAuth) await sessionLost();

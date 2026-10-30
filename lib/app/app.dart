@@ -77,8 +77,12 @@ class _AttendanceAppState extends ConsumerState<AttendanceApp> with WidgetsBindi
     if (state == AppLifecycleState.paused) {
       _backgroundedAt = DateTime.now();
     } else if (state == AppLifecycleState.resumed && _backgroundedAt != null) {
+      final session = ref.read(sessionControllerProvider.notifier);
       if (DateTime.now().difference(_backgroundedAt!) > const Duration(minutes: Env.relockAfterMinutes)) {
-        ref.read(sessionControllerProvider.notifier).relock();
+        session.relock();
+      } else if (ref.read(sessionControllerProvider).phase == SessionPhase.ready) {
+        // Pick up modules and branding the employer or platform changed while the app was in the background.
+        session.refreshMe();
       }
       _backgroundedAt = null;
     }
